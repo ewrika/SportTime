@@ -5,16 +5,16 @@
 ## Скриншоты
 
 ### Главный экран
-![Главный экран](screenshots/home_screen.png)
+![Главный экран](screenshots/home_screen.PNG)
 
 ### Таймер тренировки
-![Таймер](screenshots/timer_screen.png)
+![Таймер](screenshots/timer_screen.PNG)
 
 ### История тренировок
-![История](screenshots/history_screen.png)
+![История](screenshots/history_screen.PNG)
 
 ### Профиль пользователя
-![Профиль](screenshots/profile_screen.png)
+![Профиль](screenshots/profile_screen.PNG)
 
 ## Архитектурные решения
 

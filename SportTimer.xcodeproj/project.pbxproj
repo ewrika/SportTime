@@ -16,6 +16,11 @@
 			path = SportTimer;
 			sourceTree = "<group>";
 		};
+		E8717F402E1DBAB30043FF28 /* screenshots */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = screenshots;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +37,7 @@
 		E8717E3C2E1D27B00043FF28 = {
 			isa = PBXGroup;
 			children = (
+				E8717F402E1DBAB30043FF28 /* screenshots */,
 				E8717E472E1D27B00043FF28 /* SportTimer */,
 				E8717E462E1D27B00043FF28 /* Products */,
 			);
@@ -62,6 +68,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E8717E472E1D27B00043FF28 /* SportTimer */,
+				E8717F402E1DBAB30043FF28 /* screenshots */,
 			);
 			name = SportTimer;
 			packageProductDependencies = (
