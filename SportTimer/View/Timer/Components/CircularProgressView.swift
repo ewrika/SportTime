@@ -17,12 +17,10 @@ struct CircularProgressView: View {
     var body: some View {
         VStack(spacing: Spacing.standard) {
             ZStack {
-                // Фоновый круг
                 Circle()
                     .stroke(Color.gray.opacity(0.3), lineWidth: 8)
                     .frame(width: 250, height: 250)
                 
-                // Прогресс круг (опционально, если нужен таймер обратного отсчета)
                 if totalTime > 0 {
                     Circle()
                         .trim(from: 0.0, to: progress)
@@ -32,7 +30,6 @@ struct CircularProgressView: View {
                         .animation(.linear(duration: 1), value: progress)
                 }
                 
-                // Время в центре
                 VStack {
                     Text(formattedTime)
                         .font(.system(size: 48, weight: .bold, design: .monospaced))

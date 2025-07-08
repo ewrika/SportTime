@@ -24,16 +24,13 @@ class WorkoutViewModel: ObservableObject {
         self.viewContext = context
         self.persistenceController = persistenceController
         
-        // Подписываемся на изменения в контексте
         setupContextObservers()
         
-        // Загружаем данные при инициализации
         Task {
             await fetchWorkouts()
         }
     }
     
-    // MARK: - Core Data Operations
     
     func fetchWorkouts() async {
         isLoading = true
@@ -65,11 +62,9 @@ class WorkoutViewModel: ObservableObject {
                 workout.date = Date()
                 workout.notes = notes
                 
-                // Сохраняем изменения в этом же контексте
                 try context.save()
             }
             
-            // Обновляем UI в главном потоке
             await fetchWorkouts()
             
         } catch {
@@ -88,7 +83,6 @@ class WorkoutViewModel: ObservableObject {
                 }
             }
             
-            // Обновляем UI в главном потоке
             await fetchWorkouts()
             
         } catch {
@@ -109,7 +103,6 @@ class WorkoutViewModel: ObservableObject {
                 try context.save()
             }
             
-            // Обновляем UI в главном потоке
             await fetchWorkouts()
             
         } catch {
@@ -117,7 +110,6 @@ class WorkoutViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Search Operations
     
     func searchWorkouts(query: String) async -> [Workout] {
         guard !query.isEmpty else { return workouts }
@@ -126,7 +118,6 @@ class WorkoutViewModel: ObservableObject {
             let request: NSFetchRequest<Workout> = Workout.fetchRequest()
             request.sortDescriptors = [NSSortDescriptor(keyPath: \Workout.date, ascending: false)]
             
-            // Создаем предикат для поиска
             let predicate = NSPredicate(format: "notes CONTAINS[cd] %@ OR type CONTAINS[cd] %@", query, query)
             request.predicate = predicate
             
@@ -146,12 +137,10 @@ class WorkoutViewModel: ObservableObject {
             
             var predicates: [NSPredicate] = []
             
-            // Фильтр по типу
             if let type = type {
                 predicates.append(NSPredicate(format: "type == %@", type.rawValue))
             }
             
-            // Фильтр по дате
             if dateRange != .all {
                 let dateRangePredicate = dateRange.predicate
                 predicates.append(dateRangePredicate)
@@ -170,7 +159,6 @@ class WorkoutViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Helper Methods
     
     func getRecentWorkouts(count: Int = 3) -> [Workout] {
         return Array(workouts.prefix(count))
@@ -199,16 +187,13 @@ class WorkoutViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Context Observers
     
     private func setupContextObservers() {
-        // Подписываемся на изменения в контексте
         NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notification in
                 guard let self = self else { return }
                 
-                // Обновляем данные при изменениях
                 Task {
                     await self.fetchWorkouts()
                 }

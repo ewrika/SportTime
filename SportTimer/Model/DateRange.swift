@@ -49,7 +49,6 @@ enum DateRange: String, CaseIterable {
         }
     }
     
-    /// Создает NSPredicate для фильтрации в Core Data
     var predicate: NSPredicate {
         let calendar = Calendar.current
         let now = Date()

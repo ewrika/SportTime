@@ -16,7 +16,6 @@ struct TimerControlButtons: View {
     
     var body: some View {
         HStack(spacing: Spacing.standard) {
-            // Кнопка Старт/Пауза
             Button(action: onPlayPause) {
                 HStack {
                     Image(systemName: isRunning ? "pause.fill" : "play.fill")
@@ -34,7 +33,6 @@ struct TimerControlButtons: View {
             }
             .disabled(isCompleted)
             
-            // Кнопка Стоп
             Button(action: onStop) {
                 HStack {
                     Image(systemName: "stop.fill")

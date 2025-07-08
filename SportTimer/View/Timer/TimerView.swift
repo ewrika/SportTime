@@ -51,7 +51,6 @@ struct TimerView: View {
                     }
                 )
                 
-                // Поле для заметок
                 notesSection
                 
                 Spacer()

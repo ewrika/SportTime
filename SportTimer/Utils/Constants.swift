@@ -62,7 +62,6 @@ extension Color {
     }
 }
 
-// MARK: - Workout Types
 enum WorkoutType: String, CaseIterable {
     case strength = "Strength"
     case cardio = "Cardio"
@@ -117,3 +116,11 @@ enum WorkoutType: String, CaseIterable {
 }
 
 
+extension DateFormatter {
+    static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}

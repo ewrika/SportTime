@@ -47,13 +47,11 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    // MARK: - Settings Management
     
     private func loadSettings() async {
         isLoading = true
         
         do {
-            // Загружаем настройки в фоновом потоке
             let settings = await withTaskGroup(of: (String, Any).self) { group in
                 var results: [String: Any] = [:]
                 
@@ -79,12 +77,10 @@ class SettingsManager: ObservableObject {
                 return results
             }
             
-            // Обновляем UI в главном потоке
             self.soundEnabled = settings["soundEnabled"] as? Bool ?? true
             self.notificationsEnabled = settings["notificationsEnabled"] as? Bool ?? true
             self.userImage = settings["userImage"] as? UIImage
             
-            // Устанавливаем значения по умолчанию при первом запуске
             if !userDefaults.bool(forKey: "hasLaunchedBefore") {
                 self.soundEnabled = true
                 self.notificationsEnabled = true
@@ -107,7 +103,6 @@ class SettingsManager: ObservableObject {
         }
     }
     
-    // MARK: - Image Management
     
     private func loadUserImageAsync() async -> UIImage? {
         return await withCheckedContinuation { continuation in
@@ -137,51 +132,7 @@ class SettingsManager: ObservableObject {
             }
         }
     }
+
     
-    func clearUserImage() async {
-        await withCheckedContinuation { continuation in
-            imageQueue.async {
-                self.userDefaults.removeObject(forKey: "userImage")
-                continuation.resume()
-            }
-        }
-        
-        // Обновляем UI в главном потоке
-        self.userImage = nil
-    }
-    
-    // MARK: - Bulk Operations
-    
-    func resetAllSettings() async {
-        isLoading = true
-        
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                let domain = Bundle.main.bundleIdentifier!
-                self.userDefaults.removePersistentDomain(forName: domain)
-                self.userDefaults.synchronize()
-                continuation.resume()
-            }
-        }
-        
-        // Восстанавливаем значения по умолчанию
-        self.soundEnabled = true
-        self.notificationsEnabled = true
-        self.userImage = nil
-        
-        isLoading = false
-    }
-    
-    func exportSettings() async -> [String: Any] {
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                let settings: [String: Any] = [
-                    "soundEnabled": self.soundEnabled,
-                    "notificationsEnabled": self.notificationsEnabled,
-                    "hasUserImage": self.userImage != nil
-                ]
-                continuation.resume(returning: settings)
-            }
-        }
-    }
+
 }

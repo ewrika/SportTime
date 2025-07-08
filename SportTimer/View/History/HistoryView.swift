@@ -25,10 +25,8 @@ struct HistoryView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // Строка поиска и фильтра
                 searchAndFilterSection
                 
-                // Список тренировок
                 if isSearching {
                     loadingView
                 } else if filteredWorkouts.isEmpty {
@@ -173,13 +171,10 @@ struct HistoryView: View {
     // MARK: - Async Search
     
     private func performAsyncSearch() {
-        // Отменяем предыдущий поиск
         searchTask?.cancel()
         
-        // Создаем новый поиск с задержкой для debouncing
         searchTask = Task {
-            // Debounce для поиска
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            try? await Task.sleep(nanoseconds: 300_000_000)
             
             guard !Task.isCancelled else { return }
             
@@ -192,10 +187,8 @@ struct HistoryView: View {
         isSearching = true
         
         do {
-            // Выполняем поиск в фоновом потоке
             let results = await withTaskGroup(of: [Workout].self) { group in
                 group.addTask {
-                    // Если есть поисковый запрос, выполняем поиск
                     if !self.searchText.isEmpty {
                         return await self.viewModel.searchWorkouts(query: self.searchText)
                     } else {
@@ -203,7 +196,6 @@ struct HistoryView: View {
                     }
                 }
                 
-                // Получаем результат
                 for await result in group {
                     return result
                 }
@@ -211,13 +203,11 @@ struct HistoryView: View {
                 return []
             }
             
-            // Применяем фильтры
             let filteredResults = await viewModel.filterWorkouts(
                 by: selectedWorkoutType,
                 dateRange: dateRange
             )
             
-            // Комбинируем результаты поиска и фильтрации
             let combinedResults = results.filter { workout in
                 if selectedWorkoutType != nil || dateRange != .all {
                     return filteredResults.contains { $0.id == workout.id }
@@ -246,82 +236,9 @@ struct HistoryView: View {
     }
 }
 
-struct FilterSheet: View {
-    @Binding var selectedType: WorkoutType?
-    @Binding var dateRange: DateRange
-    @Environment(\.presentationMode) var presentationMode
-    
-    var body: some View {
-        NavigationView {
-            VStack(alignment: .leading, spacing: Spacing.standard) {
-                // Фильтр по типу тренировки
-                VStack(alignment: .leading, spacing: Spacing.small) {
-                    Text("Тип тренировки")
-                        .font(.subtitleFont)
-                        .foregroundColor(.textPrimaryColor)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Spacing.small) {
-                            FilterTypeButton(
-                                title: "Все",
-                                isSelected: selectedType == nil,
-                                color: .textSecondaryColor
-                            ) {
-                                selectedType = nil
-                            }
-                            
-                            ForEach(WorkoutType.allCases, id: \.self) { type in
-                                FilterTypeButton(
-                                    title: type.displayName,
-                                    isSelected: selectedType == type,
-                                    color: type.color
-                                ) {
-                                    selectedType = type
-                                }
-                            }
-                        }
-                        .padding(.horizontal, Spacing.standard)
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: Spacing.small) {
-                    Text("Период")
-                        .font(.subtitleFont)
-                        .foregroundColor(.textPrimaryColor)
-                    
-                    VStack(spacing: Spacing.small) {
-                        ForEach(DateRange.allCases, id: \.self) { range in
-                            FilterDateButton(
-                                title: range.displayName,
-                                isSelected: dateRange == range
-                            ) {
-                                dateRange = range
-                            }
-                        }
-                    }
-                }
-                
-                Spacer()
-            }
-            .padding(Spacing.standard)
-            .navigationTitle("Фильтры")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("Готово") {
-                presentationMode.wrappedValue.dismiss()
-            })
-        }
-    }
-}
 
-// MARK: - DateFormatter Extension
-extension DateFormatter {
-    static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-}
+
+
 
 #Preview {
     HistoryView(context: PersistenceController.preview.container.viewContext)

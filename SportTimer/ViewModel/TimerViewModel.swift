@@ -43,7 +43,6 @@ class TimerViewModel: ObservableObject {
         isRunning = true
         isCompleted = false
         
-        // Запрашиваем фоновое выполнение
         beginBackgroundTask()
         
         if soundEnabled {
@@ -52,10 +51,9 @@ class TimerViewModel: ObservableObject {
             }
         }
         
-        // Создаем async task для таймера
         timerTask = Task {
             while !Task.isCancelled && isRunning {
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 
                 if !Task.isCancelled && isRunning {
                     await MainActor.run {
@@ -109,9 +107,7 @@ class TimerViewModel: ObservableObject {
         
         endBackgroundTask()
     }
-    
-    // MARK: - Background Task Management
-    
+        
     private func beginBackgroundTask() {
         backgroundQueue.async {
             self.backgroundTask = UIApplication.shared.beginBackgroundTask { [weak self] in
@@ -129,11 +125,9 @@ class TimerViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Sound Management
     
     private func playSound(_ soundName: String) async {
         await withCheckedContinuation { continuation in
-            // Выполняем воспроизведение звука в фоновом потоке
             DispatchQueue.global(qos: .userInitiated).async {
                 switch soundName {
                 case "start":
@@ -152,9 +146,7 @@ class TimerViewModel: ObservableObject {
     
     deinit {
         timerTask?.cancel()
-        
-        // Завершаем фоновую задачу синхронно
-        backgroundQueue.sync {
+            backgroundQueue.sync {
             if backgroundTask != .invalid {
                 UIApplication.shared.endBackgroundTask(backgroundTask)
                 backgroundTask = .invalid
