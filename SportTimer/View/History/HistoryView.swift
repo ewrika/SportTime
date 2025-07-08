@@ -14,6 +14,9 @@ struct HistoryView: View {
     @State private var selectedWorkoutType: WorkoutType? = nil
     @State private var showingFilterSheet = false
     @State private var dateRange: DateRange = .all
+    @State private var filteredWorkouts: [Workout] = []
+    @State private var isSearching = false
+    @State private var searchTask: Task<Void, Never>?
     
     init(context: NSManagedObjectContext = PersistenceController.shared.container.viewContext) {
         _viewModel = StateObject(wrappedValue: WorkoutViewModel(context: context))
@@ -26,7 +29,9 @@ struct HistoryView: View {
                 searchAndFilterSection
                 
                 // Список тренировок
-                if filteredWorkouts.isEmpty {
+                if isSearching {
+                    loadingView
+                } else if filteredWorkouts.isEmpty {
                     emptyStateView
                 } else {
                     workoutsList
@@ -54,32 +59,36 @@ struct HistoryView: View {
         }
         .searchable(text: $searchText, prompt: "Поиск по заметкам...")
         .onAppear {
-            viewModel.fetchWorkouts()
+            Task {
+                await updateFilteredWorkouts()
+            }
+        }
+        .onChange(of: searchText) { _ in
+            performAsyncSearch()
+        }
+        .onChange(of: selectedWorkoutType) { _ in
+            performAsyncSearch()
+        }
+        .onChange(of: dateRange) { _ in
+            performAsyncSearch()
+        }
+        .onChange(of: viewModel.workouts) { _ in
+            performAsyncSearch()
         }
     }
     
-    private var filteredWorkouts: [Workout] {
-        var workouts = viewModel.workouts
-        
-        if !searchText.isEmpty {
-            workouts = workouts.filter { workout in
-                (workout.notes?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                viewModel.getWorkoutTypeFromString(workout.type ?? "").displayName.localizedCaseInsensitiveContains(searchText)
-            }
+    private var loadingView: some View {
+        VStack(spacing: Spacing.standard) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.primaryColor)
+            
+            Text("Поиск...")
+                .font(.bodyFont)
+                .foregroundColor(.textSecondaryColor)
         }
-        
-        if let selectedType = selectedWorkoutType {
-            workouts = workouts.filter { workout in
-                workout.type == selectedType.rawValue
-            }
-        }
-        
-        workouts = workouts.filter { workout in
-            guard let date = workout.date else { return false }
-            return dateRange.contains(date)
-        }
-        
-        return workouts
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.backgroundColor)
     }
     
     private var groupedWorkouts: [String: [Workout]] {
@@ -137,6 +146,9 @@ struct HistoryView: View {
             }
         }
         .listStyle(InsetGroupedListStyle())
+        .refreshable {
+            await viewModel.fetchWorkouts()
+        }
     }
     
     private var emptyStateView: some View {
@@ -158,17 +170,81 @@ struct HistoryView: View {
         .background(Color.backgroundColor)
     }
     
+    // MARK: - Async Search
+    
+    private func performAsyncSearch() {
+        // Отменяем предыдущий поиск
+        searchTask?.cancel()
+        
+        // Создаем новый поиск с задержкой для debouncing
+        searchTask = Task {
+            // Debounce для поиска
+            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            
+            guard !Task.isCancelled else { return }
+            
+            await updateFilteredWorkouts()
+        }
+    }
+    
+    @MainActor
+    private func updateFilteredWorkouts() async {
+        isSearching = true
+        
+        do {
+            // Выполняем поиск в фоновом потоке
+            let results = await withTaskGroup(of: [Workout].self) { group in
+                group.addTask {
+                    // Если есть поисковый запрос, выполняем поиск
+                    if !self.searchText.isEmpty {
+                        return await self.viewModel.searchWorkouts(query: self.searchText)
+                    } else {
+                        return await self.viewModel.workouts
+                    }
+                }
+                
+                // Получаем результат
+                for await result in group {
+                    return result
+                }
+                
+                return []
+            }
+            
+            // Применяем фильтры
+            let filteredResults = await viewModel.filterWorkouts(
+                by: selectedWorkoutType,
+                dateRange: dateRange
+            )
+            
+            // Комбинируем результаты поиска и фильтрации
+            let combinedResults = results.filter { workout in
+                if selectedWorkoutType != nil || dateRange != .all {
+                    return filteredResults.contains { $0.id == workout.id }
+                }
+                return true
+            }
+            
+            filteredWorkouts = combinedResults
+            
+        } catch {
+            print("Ошибка при поиске: \(error)")
+            filteredWorkouts = viewModel.workouts
+        }
+        
+        isSearching = false
+    }
+    
     private func deleteWorkouts(at offsets: IndexSet, in day: String) {
         guard let workouts = groupedWorkouts[day] else { return }
         
-        for index in offsets {
-            let workout = workouts[index]
-            viewModel.deleteWorkout(workout)
+        let workoutsToDelete = offsets.map { workouts[$0] }
+        
+        Task {
+            await viewModel.deleteWorkouts(workoutsToDelete)
         }
     }
 }
-
-
 
 struct FilterSheet: View {
     @Binding var selectedType: WorkoutType?
@@ -237,13 +313,15 @@ struct FilterSheet: View {
     }
 }
 
-
-
-
-
-
-
-
+// MARK: - DateFormatter Extension
+extension DateFormatter {
+    static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
 
 #Preview {
     HistoryView(context: PersistenceController.preview.container.viewContext)

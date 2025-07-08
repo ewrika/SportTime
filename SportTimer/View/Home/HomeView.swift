@@ -34,7 +34,9 @@ struct HomeView: View {
             .navigationBarHidden(true)
         }
         .onAppear {
-            viewModel.fetchWorkouts()
+            Task {
+                await viewModel.fetchWorkouts()
+            }
         }
     }
     

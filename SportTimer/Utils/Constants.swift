@@ -116,11 +116,4 @@ enum WorkoutType: String, CaseIterable {
     }
 }
 
-extension DateFormatter {
-    static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-}
+

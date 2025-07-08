@@ -8,115 +8,120 @@
 import Foundation
 import CoreData
 import SwiftUI
-import Combine
-import UIKit
 
+@MainActor
 class ProfileViewModel: ObservableObject {
-    @Published var userImage: UIImage?
-    @Published var soundEnabled: Bool = true
-    @Published var notificationsEnabled: Bool = true
+    @Published var workouts: [Workout] = []
+    @Published var isLoading = false
+    @Published var error: String?
     
-    private let workoutViewModel: WorkoutViewModel
-    private let settingsManager: SettingsManager
+    private let viewContext: NSManagedObjectContext
+    private let persistenceController: PersistenceController
     
-    init(workoutViewModel: WorkoutViewModel, settingsManager: SettingsManager) {
-        self.workoutViewModel = workoutViewModel
-        self.settingsManager = settingsManager
+    init(context: NSManagedObjectContext, persistenceController: PersistenceController = .shared) {
+        self.viewContext = context
+        self.persistenceController = persistenceController
         
-        // Подписываемся на изменения в настройках
-        self.userImage = settingsManager.userImage
-        self.soundEnabled = settingsManager.soundEnabled
-        self.notificationsEnabled = settingsManager.notificationsEnabled
-        
-        // Слушаем изменения в SettingsManager
-        settingsManager.objectWillChange.sink { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.userImage = settingsManager.userImage
-                self?.soundEnabled = settingsManager.soundEnabled
-                self?.notificationsEnabled = settingsManager.notificationsEnabled
-            }
-        }.store(in: &cancellables)
-    }
-    
-    private var cancellables = Set<AnyCancellable>()
-    
-    // MARK: - User Image Management
-    func updateUserImage(_ image: UIImage?) {
-        userImage = image
-        if let image = image {
-            settingsManager.saveUserImage(image)
-        } else {
-            settingsManager.clearUserImage()
+        Task {
+            await loadWorkouts()
         }
     }
     
-    // MARK: - Settings Management
-    func toggleSound() {
-        settingsManager.soundEnabled.toggle()
-        soundEnabled = settingsManager.soundEnabled
+    func loadWorkouts() async {
+        isLoading = true
+        error = nil
+        
+        do {
+            let request: NSFetchRequest<Workout> = Workout.fetchRequest()
+            request.sortDescriptors = [NSSortDescriptor(keyPath: \Workout.date, ascending: false)]
+            
+            let fetchedWorkouts = try await viewContext.perform {
+                try self.viewContext.fetch(request)
+            }
+            
+            workouts = fetchedWorkouts
+            
+        } catch {
+            self.error = "Ошибка при загрузке данных: \(error.localizedDescription)"
+        }
+        
+        isLoading = false
     }
     
-    func toggleNotifications() {
-        settingsManager.notificationsEnabled.toggle()
-        notificationsEnabled = settingsManager.notificationsEnabled
+    func clearAllData() async {
+        isLoading = true
+        error = nil
+        
+        do {
+            try await persistenceController.performBackgroundTaskAsync { context in
+                let request: NSFetchRequest<NSFetchRequestResult> = Workout.fetchRequest()
+                let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
+                
+                try context.execute(deleteRequest)
+                try context.save()
+            }
+            
+            // Обновляем локальные данные
+            workouts = []
+            
+        } catch {
+            self.error = "Ошибка при очистке данных: \(error.localizedDescription)"
+        }
+        
+        isLoading = false
     }
     
     // MARK: - Statistics
+    
     func getTotalWorkouts() -> Int {
-        return workoutViewModel.getTotalWorkouts()
+        return workouts.count
     }
     
-    func getTotalDuration() -> String {
-        return workoutViewModel.formatDuration(workoutViewModel.getTotalDuration())
+    func getTotalDuration() -> Int32 {
+        return workouts.reduce(0) { $0 + $1.duration }
     }
     
-    func getAverageDuration() -> String {
-        let totalWorkouts = workoutViewModel.getTotalWorkouts()
-        guard totalWorkouts > 0 else { return "0м" }
+    func getTotalDurationThisWeek() -> Int32 {
+        let calendar = Calendar.current
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
         
-        let averageDuration = workoutViewModel.getTotalDuration() / Int32(totalWorkouts)
-        return workoutViewModel.formatDuration(averageDuration)
+        return workouts.filter { workout in
+            guard let date = workout.date else { return false }
+            return date >= startOfWeek
+        }.reduce(0) { $0 + $1.duration }
     }
     
-    func getMostPopularWorkoutType() -> String {
-        let workoutTypes = workoutViewModel.workouts.compactMap { $0.type }
-        let counts = Dictionary(grouping: workoutTypes, by: { $0 }).mapValues { $0.count }
+    func getTotalDurationThisMonth() -> Int32 {
+        let calendar = Calendar.current
+        let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         
-        guard let mostPopular = counts.max(by: { $0.value < $1.value })?.key else {
-            return "Нет данных"
+        return workouts.filter { workout in
+            guard let date = workout.date else { return false }
+            return date >= startOfMonth
+        }.reduce(0) { $0 + $1.duration }
+    }
+    
+    func getMostPopularWorkoutType() -> WorkoutType {
+        let workoutTypes = workouts.compactMap { workout in
+            WorkoutType(rawValue: workout.type ?? "")
         }
         
-        return workoutViewModel.getWorkoutTypeFromString(mostPopular).displayName
-    }
-    
-    // MARK: - Data Management
-    func refreshData() {
-        // Обновляем данные из базы данных
-        workoutViewModel.fetchWorkouts()
+        let typeCounts = Dictionary(grouping: workoutTypes) { $0 }
+            .mapValues { $0.count }
         
-        // Обновляем изображение пользователя
-        userImage = settingsManager.userImage
+        return typeCounts.max(by: { $0.value < $1.value })?.key ?? .other
     }
     
-    func clearAllData() {
-        // Очищаем все тренировки
-        for workout in workoutViewModel.workouts {
-            workoutViewModel.deleteWorkout(workout)
-        }
+    func formatDuration(_ duration: Int32) -> String {
+        let hours = duration / 3600
+        let minutes = (duration % 3600) / 60
         
-        // Очищаем изображение пользователя
-        settingsManager.clearUserImage()
-        userImage = nil
-    }
-    
-    // MARK: - App Info
-    func getAppVersion() -> String {
-        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-    }
-    
-    func openSupportEmail() {
-        if let url = URL(string: "mailto:egorkaomsk_2003@mail.ru") {
-            UIApplication.shared.open(url)
+        if hours > 0 {
+            return "\(hours)ч \(minutes)м"
+        } else if minutes > 0 {
+            return "\(minutes)м"
+        } else {
+            return "\(duration)с"
         }
     }
 } 

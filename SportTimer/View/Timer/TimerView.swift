@@ -73,7 +73,9 @@ struct TimerView: View {
             Text("Тренировка длилась \(timerViewModel.formattedElapsedTime)")
         }
         .onAppear {
-            viewModel.fetchWorkouts()
+            Task {
+                await viewModel.fetchWorkouts()
+            }
         }
     }
     
@@ -102,11 +104,13 @@ struct TimerView: View {
     // MARK: - Actions
     private func stopTimer() {
         if timerViewModel.elapsedTime > 0 {
-            viewModel.addWorkout(
-                type: selectedWorkoutType,
-                duration: Int32(timerViewModel.elapsedTime),
-                notes: notes.isEmpty ? nil : notes
-            )
+            Task {
+                await viewModel.addWorkout(
+                    type: selectedWorkoutType,
+                    duration: Int32(timerViewModel.elapsedTime),
+                    notes: notes.isEmpty ? nil : notes
+                )
+            }
             showingCompletedAlert = true
         }
         timerViewModel.stopTimer(soundEnabled: settingsManager.soundEnabled)

@@ -11,14 +11,13 @@ import PhotosUI
 
 struct ProfileView: View {
     @StateObject private var profileViewModel: ProfileViewModel
+    @StateObject private var settingsManager = SettingsManager()
     @State private var showingImagePicker = false
     @State private var showingDeleteAlert = false
     @State private var selectedImage: UIImage?
     
     init(context: NSManagedObjectContext = PersistenceController.shared.container.viewContext) {
-        let workoutViewModel = WorkoutViewModel(context: context)
-        let settingsManager = SettingsManager()
-        _profileViewModel = StateObject(wrappedValue: ProfileViewModel(workoutViewModel: workoutViewModel, settingsManager: settingsManager))
+        _profileViewModel = StateObject(wrappedValue: ProfileViewModel(context: context))
     }
     
     var body: some View {
@@ -51,10 +50,12 @@ struct ProfileView: View {
             Text("Это действие нельзя отменить. Все тренировки будут удалены.")
         }
         .onChange(of: selectedImage) { image in
-            profileViewModel.updateUserImage(image)
+            settingsManager.userImage = image
         }
         .onAppear {
-            profileViewModel.refreshData()
+            Task {
+                await profileViewModel.loadWorkouts()
+            }
         }
     }
     
@@ -63,7 +64,7 @@ struct ProfileView: View {
             Button(action: {
                 showingImagePicker = true
             }) {
-                if let image = profileViewModel.userImage {
+                if let image = settingsManager.userImage {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -107,21 +108,21 @@ struct ProfileView: View {
                 StatisticsCard(
                     icon: "clock.fill",
                     title: "Общее время",
-                    value: profileViewModel.getTotalDuration(),
+                    value: profileViewModel.formatDuration(profileViewModel.getTotalDuration()),
                     color: .successColor
                 )
                 
                 StatisticsCard(
                     icon: "calendar.badge.clock",
-                    title: "Средняя длительность",
-                    value: profileViewModel.getAverageDuration(),
+                    title: "За эту неделю",
+                    value: profileViewModel.formatDuration(profileViewModel.getTotalDurationThisWeek()),
                     color: .warningColor
                 )
                 
                 StatisticsCard(
                     icon: "chart.bar.fill",
                     title: "Любимый тип",
-                    value: profileViewModel.getMostPopularWorkoutType(),
+                    value: profileViewModel.getMostPopularWorkoutType().displayName,
                     color: .dangerColor
                 )
             }
@@ -140,10 +141,7 @@ struct ProfileView: View {
                     title: "Звуки таймера",
                     color: .primaryColor
                 ) {
-                    Toggle("", isOn: Binding(
-                        get: { profileViewModel.soundEnabled },
-                        set: { _ in profileViewModel.toggleSound() }
-                    ))
+                    Toggle("", isOn: $settingsManager.soundEnabled)
                         .labelsHidden()
                 }
                 
@@ -154,10 +152,7 @@ struct ProfileView: View {
                     title: "Уведомления",
                     color: .warningColor
                 ) {
-                    Toggle("", isOn: Binding(
-                        get: { profileViewModel.notificationsEnabled },
-                        set: { _ in profileViewModel.toggleNotifications() }
-                    ))
+                    Toggle("", isOn: $settingsManager.notificationsEnabled)
                         .labelsHidden()
                 }
                 
@@ -192,7 +187,7 @@ struct ProfileView: View {
                     title: "Версия",
                     color: .primaryColor
                 ) {
-                    Text(profileViewModel.getAppVersion())
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
                         .font(.bodyFont)
                         .foregroundColor(.textSecondaryColor)
                 }
@@ -217,7 +212,9 @@ struct ProfileView: View {
                     color: .dangerColor
                 ) {
                     Button("Написать") {
-                        profileViewModel.openSupportEmail()
+                        if let url = URL(string: "mailto:egorkaomsk_2003@mail.ru") {
+                            UIApplication.shared.open(url)
+                        }
                     }
                     .foregroundColor(.primaryColor)
                 }
@@ -229,9 +226,11 @@ struct ProfileView: View {
     }
     
     
-    private func clearAllData() {
-        profileViewModel.clearAllData()
-    }
+          private func clearAllData() {
+          Task {
+              await profileViewModel.clearAllData()
+          }
+      }
 }
 
 
